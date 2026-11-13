@@ -12,7 +12,7 @@ Her sabah üç kısa okuma önerisi. Birini seçiyorsun, Claude senin için 1–
 
 ## GitHub Pages'te yayınlama
 
-Repo: `lilseakk-spec/Sabah-okumas-`
+Repo: `lilseakk-spec/g-nl-kokuma`
 
 **Yol 1: tarayıcıdan (en kolayı)**
 
@@ -20,7 +20,7 @@ Repo: `lilseakk-spec/Sabah-okumas-`
 2. Bu klasördeki her şeyi sürükle bırak: `index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.webmanifest`, `.nojekyll`, `README.md` ve `icons` klasörü. (`.claude` klasörüne gerek yok.)
 3. **Commit changes**.
 4. **Settings → Pages → Build and deployment → Source: Deploy from a branch**, Branch: `main` / `(root)` → **Save**.
-5. 1–2 dakika sonra uygulama şu adreste açılır: **https://lilseakk-spec.github.io/Sabah-okumas-/**
+5. 1–2 dakika sonra uygulama şu adreste açılır: **https://lilseakk-spec.github.io/g-nl-kokuma/**
 
 **Yol 2: komut satırından**
 
@@ -28,7 +28,7 @@ Repo: `lilseakk-spec/Sabah-okumas-`
 git init -b main
 git add index.html app.js styles.css sw.js manifest.webmanifest .nojekyll README.md icons
 git commit -m "Sabah Okuması"
-git remote add origin https://github.com/lilseakk-spec/Sabah-okumas-.git
+git remote add origin https://github.com/lilseakk-spec/g-nl-kokuma.git
 git push -u origin main
 ```
 
