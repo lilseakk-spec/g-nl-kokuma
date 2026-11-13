@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sabah Okuması</title>
+  <meta name="description" content="Her sabah üç kısa okuma seçeneği. Birini seç, oku, not al.">
+  <meta name="theme-color" content="#f5efe4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Sabah">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- BUGÜN -->
+    <section class="view" id="view-today" data-view="today">
+      <header class="top">
+        <div>
+          <p class="eyebrow" id="today-date"></p>
+          <h1 class="greet" id="greeting">Günaydın</h1>
+        </div>
+        <span class="streak" id="streak" hidden></span>
+      </header>
+
+      <div id="today-body"></div>
+    </section>
+
+    <!-- OKUYUCU -->
+    <section class="view reader" id="view-reader" data-view="reader" hidden>
+      <div class="progress"><span id="read-progress"></span></div>
+      <header class="reader-bar">
+        <button class="icon-btn" id="reader-back" aria-label="Geri">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="reader-meta" id="reader-meta"></span>
+        <button class="icon-btn" id="reader-notes-toggle" aria-label="Notlar">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 4h10l4 4v12H5z M14 4v5h5 M8 13h8 M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <article class="article" id="article"></article>
+      <div class="article-end" id="article-end" hidden>
+        <p class="end-q">Bu yazı nasıldı?</p>
+        <div class="rate">
+          <button class="chip" data-rate="1">Çok sevdim</button>
+          <button class="chip" data-rate="0">Fena değil</button>
+          <button class="chip" data-rate="-1">Bana göre değil</button>
+        </div>
+        <button class="btn ghost" id="open-notes-end">Not ekle</button>
+      </div>
+    </section>
+
+    <!-- KÜTÜPHANE -->
+    <section class="view" id="view-library" data-view="library" hidden>
+      <header class="top">
+        <div>
+          <p class="eyebrow">Okuduklarım</p>
+          <h1 class="greet">Kütüphane</h1>
+        </div>
+      </header>
+      <div class="seg" id="lib-filter">
+        <button class="seg-btn active" data-f="all">Tümü</button>
+        <button class="seg-btn" data-f="notes">Notlu</button>
+        <button class="seg-btn" data-f="fav">Sevdiklerim</button>
+      </div>
+      <ul class="lib-list" id="lib-list"></ul>
+    </section>
+
+    <!-- AYARLAR -->
+    <section class="view" id="view-settings" data-view="settings" hidden>
+      <header class="top">
+        <div>
+          <p class="eyebrow">Tercihler</p>
+          <h1 class="greet">Ayarlar</h1>
+        </div>
+      </header>
+
+      <div class="group">
+        <h2 class="group-title">Claude API</h2>
+        <label class="field">
+          <span>API anahtarı</span>
+          <div class="key-row">
+            <input id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+            <button class="icon-btn small" id="key-eye" aria-label="Göster/gizle">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            </button>
+          </div>
+          <small>Anahtar yalnızca bu cihazın tarayıcısında saklanır ve sadece api.anthropic.com'a gönderilir. <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anahtar al</a></small>
+        </label>
+        <div class="row-actions">
+          <button class="btn" id="key-save">Kaydet</button>
+          <button class="btn ghost" id="key-test">Bağlantıyı test et</button>
+        </div>
+        <p class="hint" id="key-status"></p>
+
+        <label class="field">
+          <span>Model</span>
+          <select id="set-model">
+            <option value="claude-opus-5-5">Claude Opus 5.5 — en iyi yazı kalitesi</option>
+            <option value="claude-sonnet-5-5">Claude Sonnet 5.5 — daha hızlı, daha ucuz</option>
+            <option value="claude-haiku-5-5">Claude Haiku 5.5 — en ucuz</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="group">
+        <h2 class="group-title">Okuma</h2>
+        <label class="field">
+          <span>Yazı uzunluğu</span>
+          <select id="set-length">
+            <option value="short">Kısa · ~1 sayfa (5 dk)</option>
+            <option value="normal">Normal · ~1,5 sayfa (6–7 dk)</option>
+            <option value="long">Uzun · ~2 sayfa (8–9 dk)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Yazı boyutu</span>
+          <input id="set-font" type="range" min="0.9" max="1.3" step="0.05">
+        </label>
+        <label class="field">
+          <span>Tema</span>
+          <select id="set-theme">
+            <option value="auto">Sistem</option>
+            <option value="light">Açık</option>
+            <option value="dark">Koyu</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="group">
+        <h2 class="group-title">İlgi alanların</h2>
+        <p class="hint">Seçimlerine ve puanlarına göre öğreniliyor. Öneriler her gün buna göre sıralanır, ama her gün bir tane de yeni bir alandan gelir.</p>
+        <div class="interest" id="interest"></div>
+        <button class="btn ghost small" id="profile-reset">İlgi profilini sıfırla</button>
+      </div>
+
+      <div class="group">
+        <h2 class="group-title">Veriler</h2>
+        <p class="hint">Okumalar ve notlar bu cihazda saklanır. Telefon değiştirirken yedeği al.</p>
+        <div class="row-actions wrap">
+          <button class="btn ghost" id="export-notes">Notları indir (.md)</button>
+          <button class="btn ghost" id="export-json">Yedek al</button>
+          <label class="btn ghost file-btn">Yedekten yükle<input type="file" id="import-json" accept="application/json" hidden></label>
+        </div>
+      </div>
+
+      <p class="foot">Sabah Okuması · Yeni seçenekler her gün 04:00'te hazır.</p>
+    </section>
+  </div>
+
+  <!-- NOT PANELİ -->
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <aside class="sheet" id="notes-sheet" aria-hidden="true">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3>Notlarım</h3>
+      <span class="saved" id="notes-saved"></span>
+      <button class="icon-btn small" id="notes-close" aria-label="Kapat">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <textarea id="notes-text" placeholder="Aklında kalanları, sorularını, merak ettiklerini yaz…&#10;&#10;İpucu: yazıda bir cümleyi seçip “Alıntıla”ya basarsan buraya eklenir."></textarea>
+  </aside>
+
+  <button class="quote-btn" id="quote-btn" hidden>
+    <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 7h4v4H8c0 2 1 3 3 3v2c-3 0-4-2-4-5zM14 7h4v4h-3c0 2 1 3 3 3v2c-3 0-4-2-4-5z" fill="currentColor"/></svg>
+    Alıntıla
+  </button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab active" data-go="today">
+      <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Bugün</span>
+    </button>
+    <button class="tab" data-go="library">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1z M12 6v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      <span>Kütüphane</span>
+    </button>
+    <button class="tab" data-go="settings">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      <span>Ayarlar</span>
+    </button>
+  </nav>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
