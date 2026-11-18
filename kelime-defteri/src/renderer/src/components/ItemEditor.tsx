@@ -3,7 +3,7 @@ import type { Example, Item, ItemDraft, ItemKind, WordList } from '@shared/types
 import { api } from '../lib/api'
 import { navigate, useApp, useData } from '../lib/store'
 import { Icon, SpeakButton, Spinner, TagInput } from './ui'
-import { splitMeanings } from '@shared/text'
+import { normalizeTerm, splitMeanings } from '@shared/text'
 
 export function emptyDraft(kind: ItemKind = 'word'): ItemDraft {
   return {
@@ -105,32 +105,66 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
     return () => clearTimeout(t)
   }, [d.term, item?.id])
 
-  const aiFill = async () => {
-    if (!d.term.trim()) return
+  // ---- otomatik doldurma: yazmayı bırakınca yapay zekâ alanları kendiliğinden doldurur ----
+  const [filledFor, setFilledFor] = useState<string | null>(item ? normalizeTerm(item.term) : null)
+  const snapshot = useRef('')
+  const reqId = useRef(0)
+  const detailsJson = (x: ItemDraft) => JSON.stringify([x.ipa, x.pos, x.cefr, x.examples, x.synonyms, x.antonyms, x.collocations, x.template, x.usage])
+
+  const aiFill = async (): Promise<ItemDraft | null> => {
+    if (!d.term.trim()) return null
+    const my = ++reqId.current
+    const term = d.term.trim()
     setLoading(true)
     try {
       const firstMeaning = str2list(meaningStr)[0]
-      const r = await api.aiEnrich(d.term.trim(), firstMeaning)
-      setD((x) => ({
+      const r = await api.aiEnrich(term, firstMeaning)
+      if (my !== reqId.current) return null // daha yeni bir istek var
+      const mergeInto = (x: ItemDraft): ItemDraft => ({
         ...x,
         ...r,
         kind: x.kind === 'pattern' ? 'pattern' : r.kind,
+        term: x.term,
         listIds: x.listIds,
         tags: x.tags,
         notes: x.notes
-      }))
+      })
+      const merged = mergeInto(d)
+      snapshot.current = detailsJson(merged)
+      setD(mergeInto)
       setMeaningStr(list2str(r.meanings))
+      setFilledFor(normalizeTerm(term))
       setFilled(true)
+      return { ...merged, meanings: r.meanings }
     } catch (e) {
-      toast((e as Error).message, 'err')
-      setFilled(true)
+      if (my === reqId.current) {
+        toast((e as Error).message, 'err')
+        setFilled(true)
+      }
+      return null
     } finally {
-      setLoading(false)
+      if (my === reqId.current) setLoading(false)
     }
   }
 
+  useEffect(() => {
+    if (!hasAi || item) return
+    const term = normalizeTerm(d.term)
+    if (term.length < 2 || term === filledFor) return
+    // kullanıcı ayrıntıları elle değiştirdiyse üzerine yazma
+    if (filledFor && detailsJson(d) !== snapshot.current) return
+    const t = setTimeout(() => void aiFill(), 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.term, hasAi])
+
   const save = async (startLearning = false) => {
-    const draft: ItemDraft = { ...d, meanings: str2list(meaningStr) }
+    let draft: ItemDraft = { ...d, meanings: str2list(meaningStr) }
+    // Anlam yazılmadıysa ve yapay zekâ açıksa önce doldurmayı bekle
+    if (!item && hasAi && !draft.meanings.length && draft.term.trim()) {
+      const r = await aiFill()
+      if (r) draft = { ...r, meanings: r.meanings }
+    }
     if (!draft.term.trim()) return toast('Kelimeyi/kalıbı yazın.', 'err')
     if (!draft.meanings.length) return toast('Türkçe anlam zorunludur.', 'err')
     setSaving(true)
@@ -146,6 +180,9 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
         setD({ ...emptyDraft(d.kind), listIds: d.listIds, tags: d.tags })
         setMeaningStr('')
         setFilled(false)
+        setFilledFor(null)
+        reqId.current++
+        setLoading(false)
         termRef.current?.focus()
       }
     } catch (e) {
@@ -161,7 +198,7 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
     set({ examples: ex })
   }
 
-  const showDetails = filled || !!item || !hasAi
+  const showDetails = filled || loading || !!item || !hasAi
   const isPattern = d.kind === 'pattern'
 
   return (
@@ -192,8 +229,7 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  if (hasAi && !filled) void aiFill()
-                  else void save()
+                  void save()
                 }
               }}
             />
@@ -207,7 +243,7 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
             placeholder="dayanıklı, dirençli"
             value={meaningStr}
             onChange={(e) => setMeaningStr(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), filled || !hasAi ? save() : aiFill())}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), save())}
           />
         </div>
       </div>
@@ -223,18 +259,25 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
         </div>
       )}
 
-      {hasAi && !filled && (
-        <div className="flex items-center gap-3">
-          <button className="btn btn-brand" disabled={!d.term.trim() || loading} onClick={aiFill}>
-            {loading ? <Spinner /> : <Icon name="sparkles" size={16} />}
-            {loading ? 'Dolduruluyor…' : 'Yapay zekâ ile doldur'}
-          </button>
-          <button className="btn btn-ghost text-sm" onClick={() => setFilled(true)}>
-            Kendim yazacağım
-          </button>
-          <span className="text-xs text-muted">
-            <span className="kbd">Enter</span> ile de doldurabilirsin
-          </span>
+      {hasAi && !item && (
+        <div className="flex min-h-[28px] items-center gap-3 text-sm">
+          {loading ? (
+            <span className="flex items-center gap-2 font-semibold text-brand">
+              <Spinner /> Yapay zekâ telaffuz, tür, seviye ve örnek cümleleri dolduruyor…
+            </span>
+          ) : filled && filledFor ? (
+            <>
+              <span className="font-semibold text-good">✓ Otomatik dolduruldu — kaydetmeden önce düzenleyebilirsin.</span>
+              <button type="button" className="text-xs font-semibold text-brand hover:underline" onClick={() => void aiFill()}>
+                <Icon name="refresh" size={12} className="mr-1 inline" />
+                Yeniden doldur
+              </button>
+            </>
+          ) : (
+            <span className="text-xs text-muted">
+              Kelimeyi yaz, gerisini yapay zekâ otomatik doldurur. <span className="kbd">Enter</span> ile hemen kaydedebilirsin; eksikler arka planda tamamlanır.
+            </span>
+          )}
         </div>
       )}
       {!hasAi && !item && (

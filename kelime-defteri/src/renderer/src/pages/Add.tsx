@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ItemDraft } from '@shared/types'
 import { parseBulkLines, splitMeanings, normalizeTerm } from '@shared/text'
 import { api } from '../lib/api'
@@ -70,6 +70,16 @@ function BulkPreview({ initial, onDone }: { initial: Row[]; onDone: () => void }
       setBusy(false)
     }
   }
+
+  // Yapay zekâ açıksa önizleme açılır açılmaz eksikleri otomatik doldur
+  const autoRan = useRef(false)
+  useEffect(() => {
+    if (hasAi && !autoRan.current) {
+      autoRan.current = true
+      void fillAll()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAi])
 
   const included = rows.filter((r) => r.include && !r.duplicate).length
   const needsAi = rows.filter((r) => r.include && !r.duplicate && r.state !== 'done').length

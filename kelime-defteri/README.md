@@ -77,8 +77,10 @@ Model: varsayılan **Claude Haiku 5.5**; Ayarlar'dan **Claude Sonnet 5.5** seçi
 ## Kelime ekleme
 
 - **Hızlı ekle:** Ana sayfadaki büyük kutuya yaz ve Enter'a bas, ya da her ekrandan **Ctrl+N** (macOS'ta ⌘N).
-  API anahtarı varsa "Yapay zekâ ile doldur": IPA, kelime türü, Türkçe anlamlar, 2 örnek cümle + çeviri,
-  eş/zıt anlamlılar, sık kalıplar ve tahmini CEFR seviyesi gelir. Kaydetmeden önce hepsini düzenleyebilirsin.
+  API anahtarı varsa alanlar **otomatik dolar**: kelimeyi yazıp durduğunda IPA, kelime türü, Türkçe anlamlar,
+  2 örnek cümle + çeviri, eş/zıt anlamlılar, sık kalıplar ve tahmini CEFR seviyesi gelir; kaydetmeden önce düzenleyebilirsin.
+  Hemen Enter'a basarsan kart kaydedilir ve eksik alanlar arka planda tamamlanır (senin yazdığın alanlara dokunulmaz).
+  Mevcut kartlar için: Kelimelerim → kartları seç → **Eksikleri doldur**.
   Anahtar yoksa sadece **kelime + anlam** zorunludur.
 - **Konuşma kalıbı:** "Konuşma kalıbı" türünü seç: kalıp, anlam, kullanım (resmi/günlük/nötr), boşluklu şablon
   (`I'm looking forward to ___`), kullanım durumu ve örnekler.
@@ -118,6 +120,21 @@ Kısayollar: **Boşluk** çevir · **1–4** puanla (Bilmiyorum/Zor/İyi/Kolay) 
 **Konuşma pratiği (AI):** senaryo seç (restoran, iş görüşmesi, havalimanı...), kullanılacak kelimelerini işaretle.
 Yapay zekâ bu kelime ve kalıpları kullanır, seni de kullanmaya yönlendirir, cevaplarını sesli okur. Sonunda
 hatalarının ve kullandığın/kullanamadığın kelimelerinin Türkçe özetini verir.
+
+## Konu tekrarı (dilbilgisi)
+
+Kenar çubuğunda **Konu tekrarı**: 13 hazır konu, her birinde Türkçe konu anlatımı, formül kutusu, ipuçları ve 6 etkinlik:
+**Test** (çoktan seçmeli + doğru/yanlış) · **Boşluk doldurma** · **Cümle kurma** · **Eşleştirme oyunu** · **Hız turu (60 sn)** · **Ödev**.
+
+Konular: Geniş zaman (olumlu) · Soru sormak · Olumsuz cümleler · Past Simple · Düzensiz fiiller · Future Simple ·
+Present Continuous · Bağlaçlar · Modal fiiller · Past Continuous · Present Perfect · Phrasal verbs · Present Perfect Continuous.
+(İstekte "İngilizce bağlaçlar" iki kez geçtiği için tek konu yapıldı.)
+
+- Hazır sorular anahtarsız çalışır. API anahtarı varsa test / boşluk / cümle kurmada **"Yapay zekâ ile yeni sorular"** her
+  seferinde taze sorular üretir (cümlelerde mümkünse senin kelimelerin, değilse en basit kelimeler; hiçbiri kartlarına eklenmez),
+  **Ödev** yapay zekâ tarafından puanlanır ve Türkçe açıklamayla düzeltilir.
+- **Yeni konu ekle** (API anahtarıyla): konu adını yaz, ders ve alıştırmalar otomatik hazırlanır.
+- Her etkinliğin en iyi skoru saklanır; doğru cevaplar XP kazandırır ve konu çalışmak da günlük seriye sayılır.
 
 ## Bildirimler ve alarmlar
 

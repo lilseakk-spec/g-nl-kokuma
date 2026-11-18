@@ -8,6 +8,7 @@ import { AddPage } from './pages/Add'
 import { WordsPage } from './pages/Words'
 import { StudyPage } from './pages/Study'
 import { ConversationPage } from './pages/Conversation'
+import { GrammarListPage, GrammarTopicPage } from './pages/Grammar'
 import { StatsPage } from './pages/Stats'
 import { SettingsPage } from './pages/Settings'
 import { AlarmPage } from './pages/Alarm'
@@ -21,6 +22,7 @@ const NAV = [
   { to: '/patterns', label: 'Kalıplarım', icon: 'pattern' },
   { to: '/study', label: 'Çalış', icon: 'cards' },
   { to: '/talk', label: 'Konuşma pratiği', icon: 'chat' },
+  { to: '/grammar', label: 'Konu tekrarı', icon: 'book' },
   { to: '/stats', label: 'İstatistikler', icon: 'chart' },
   { to: '/settings', label: 'Ayarlar', icon: 'settings' }
 ]
@@ -131,6 +133,8 @@ export function App() {
   else if (path.startsWith('/patterns')) page = <WordsPage kind="pattern" openId={Number(query.get('open')) || undefined} />
   else if (path.startsWith('/study')) page = <StudyPage />
   else if (path.startsWith('/talk')) page = <ConversationPage />
+  else if (path.startsWith('/grammar/')) page = <GrammarTopicPage key={path} id={decodeURIComponent(path.split('/')[2])} />
+  else if (path.startsWith('/grammar')) page = <GrammarListPage />
   else if (path.startsWith('/stats')) page = <StatsPage />
   else if (path.startsWith('/settings')) page = <SettingsPage />
   else page = <HomePage />

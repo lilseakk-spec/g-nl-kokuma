@@ -10,8 +10,12 @@ import {
   patternCheckPrompt,
   situationPrompt,
   SCENARIOS,
-  VOCAB_RULE
+  VOCAB_RULE,
+  grammarCheckPrompt,
+  grammarExercisePrompt,
+  grammarTopicPrompt
 } from '@shared/prompts'
+import type { GQuestion, GrammarTopic } from '@shared/grammar/types'
 
 export class AiUnavailableError extends Error {
   constructor() {
@@ -49,6 +53,41 @@ const PatternSchema = z.object({
 })
 
 const SituationSchema = z.object({ situationTr: z.string() })
+
+const ChoiceSchema = z.object({ prompt: z.string(), options: z.array(z.string()), answer: z.number().int(), explain: z.string() })
+const GapSchema = z.object({ sentence: z.string(), answers: z.array(z.string()), hint: z.string(), explain: z.string() })
+const OrderSchema = z.object({ sentence: z.string(), tr: z.string() })
+const TfSchema = z.object({ sentence: z.string(), correct: z.boolean(), fix: z.string(), explain: z.string() })
+const TestSet = z.object({ items: z.array(ChoiceSchema) })
+const GapSet = z.object({ items: z.array(GapSchema) })
+const OrderSet = z.object({ items: z.array(OrderSchema) })
+const GrammarCheckSchema = z.object({
+  score: z.number(),
+  corrected: z.string(),
+  mistakes: z.array(z.object({ original: z.string(), corrected: z.string(), explanationTr: z.string() })),
+  feedbackTr: z.string()
+})
+const TopicSchema = z.object({
+  title: z.string(),
+  subtitle: z.string(),
+  level: z.string(),
+  emoji: z.string(),
+  summary: z.string(),
+  formula: z.array(z.string()),
+  sections: z.array(z.object({ heading: z.string(), body: z.array(z.string()), examples: z.array(z.object({ en: z.string(), tr: z.string() })) })),
+  tips: z.array(z.string()),
+  choice: z.array(ChoiceSchema),
+  gaps: z.array(GapSchema),
+  orders: z.array(OrderSchema),
+  truefalse: z.array(TfSchema),
+  pairs: z.array(z.object({ left: z.string(), right: z.string() })),
+  homework: z.array(z.object({ task: z.string(), sample: z.string() }))
+})
+
+export type GrammarCheck = z.infer<typeof GrammarCheckSchema>
+
+const validChoice = (q: z.infer<typeof ChoiceSchema>) => q.options.length >= 2 && q.answer >= 0 && q.answer < q.options.length
+const validGap = (q: z.infer<typeof GapSchema>) => q.sentence.split('___').length === 2 && q.answers.some((a) => a.trim())
 
 function friendlyError(e: unknown): Error {
   if (e instanceof AiUnavailableError) return e
@@ -182,5 +221,50 @@ export class Ai {
       patternCheckPrompt(item, situation, answer),
       1200
     )
+  }
+
+  // ---------- konu tekrarı ----------
+  async grammarExercises(topic: GrammarTopic, kind: 'test' | 'gap' | 'order', words: Item[], count = 8): Promise<GQuestion[]> {
+    const system = 'You are an expert English teacher who writes accurate grammar exercises for Turkish speakers.'
+    const prompt = grammarExercisePrompt(topic.title, topic.subtitle, kind, count, words)
+    if (kind === 'test') {
+      const r = await this.parse(TestSet, system, prompt, 4000)
+      return r.items.filter(validChoice).map((q) => ({ type: 'choice' as const, ...q }))
+    }
+    if (kind === 'gap') {
+      const r = await this.parse(GapSet, system, prompt, 4000)
+      return r.items.filter(validGap).map((q) => ({ type: 'gap' as const, ...q, hint: q.hint || undefined }))
+    }
+    const r = await this.parse(OrderSet, system, prompt, 3000)
+    return r.items.filter((q) => q.sentence.split(' ').length >= 3).map((q) => ({ type: 'order' as const, ...q }))
+  }
+
+  async grammarCheck(topic: GrammarTopic, task: string, answer: string): Promise<GrammarCheck> {
+    return this.parse(GrammarCheckSchema, 'You are a kind English teacher. All explanations must be in Turkish.', grammarCheckPrompt(topic.title, task, answer), 3000)
+  }
+
+  /** Yeni konu: tam ders + alıştırmalar üretir */
+  async grammarTopic(title: string): Promise<GrammarTopic> {
+    const r = await this.parse(TopicSchema, 'You are an expert English teacher writing clear Turkish grammar lessons.', grammarTopicPrompt(title), 12000)
+    return {
+      id: 'custom-' + Date.now().toString(36),
+      title: r.title || title,
+      subtitle: r.subtitle,
+      level: r.level,
+      emoji: r.emoji || '📘',
+      summary: r.summary,
+      formula: r.formula,
+      sections: r.sections,
+      tips: r.tips,
+      questions: [
+        ...r.choice.filter(validChoice).map((q) => ({ type: 'choice' as const, ...q })),
+        ...r.gaps.filter(validGap).map((q) => ({ type: 'gap' as const, ...q })),
+        ...r.orders.map((q) => ({ type: 'order' as const, ...q })),
+        ...r.truefalse.map((q) => ({ type: 'tf' as const, ...q, fix: q.fix || undefined }))
+      ],
+      pairs: r.pairs,
+      homework: r.homework,
+      custom: true
+    }
   }
 }

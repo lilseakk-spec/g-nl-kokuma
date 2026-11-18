@@ -115,3 +115,46 @@ export function usedTargets(targets: Item[], userTexts: string[]): { used: strin
   }
   return { used, unused }
 }
+
+// ---------- konu tekrarı (dilbilgisi) ----------
+export function grammarVocabNote(words: Item[]): string {
+  if (!words.length) return 'Use only very simple, common A1 words in all sentences.'
+  return [
+    "Where natural, build sentences with the learner's own words below; otherwise use only very simple, common A1 words.",
+    "Never introduce or highlight new vocabulary. The learner's words:",
+    words.map((w) => w.term).join(', ')
+  ].join('\n')
+}
+
+export function grammarExercisePrompt(topicTitle: string, topicSubtitle: string, kind: 'test' | 'gap' | 'order', count: number, words: Item[]): string {
+  const what = {
+    test: `${count} multiple-choice questions. Each: prompt (an English sentence with ___ for the missing part, or a short question), exactly 4 options, answer = index (0-3) of the only correct option, explain = one short Turkish explanation.`,
+    gap: `${count} fill-in-the-gap sentences. Each: sentence with exactly one ___, answers = list of accepted answers (usually 1-2 words; include contractions as alternatives), hint = base verb in parentheses like "(go)" or a short Turkish hint, explain = short Turkish explanation.`,
+    order: `${count} sentences for a word-ordering game, 4-10 words each, with natural Turkish translations (tr).`
+  }[kind]
+  return [
+    `Create grammar practice for a Turkish-speaking learner. Topic: "${topicTitle}" (${topicSubtitle}).`,
+    what,
+    'Every item must clearly practise this topic. Vary subjects and sentence types (positive, negative, question where relevant). Make sure there is exactly one correct answer.',
+    grammarVocabNote(words)
+  ].join('\n')
+}
+
+export function grammarCheckPrompt(topicTitle: string, task: string, answer: string): string {
+  return [
+    `A Turkish-speaking learner did a writing homework for the grammar topic "${topicTitle}".`,
+    `Task (Turkish): ${task}`,
+    `Learner's answer: """${answer}"""`,
+    'Return: score (0-100, how well they used the topic correctly), corrected (the full corrected text, keep their ideas and simple words), mistakes (each with original, corrected, explanationTr), feedbackTr (2-3 encouraging sentences in Turkish about how they used the topic).',
+    VOCAB_RULE
+  ].join('\n')
+}
+
+export function grammarTopicPrompt(title: string): string {
+  return [
+    `Create a complete grammar lesson in TURKISH for a Turkish-speaking English learner on: "${title}".`,
+    'Fields: title (Turkish), subtitle (English grammar name), level (CEFR like "A2"), emoji (one emoji), summary (1-2 Turkish sentences), formula (2-4 short structure lines), sections (2-3 sections: heading, body lines in Turkish; lines starting with "• " are bullets, **bold** allowed; examples with en/tr), tips (1-3 Turkish tips),',
+    'choice (8 multiple-choice: prompt with ___, 4 options, answer index, explain in Turkish), gaps (8: sentence with one ___, answers list, hint, explain), orders (4: sentence, tr), truefalse (6: sentence, correct boolean, fix = corrected sentence if wrong else empty, explain), pairs (6-8 matching pairs left/right), homework (2: task in Turkish, sample answer in English).',
+    'Use only very simple A1 vocabulary in examples so the focus stays on grammar.'
+  ].join('\n')
+}

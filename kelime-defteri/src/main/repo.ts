@@ -18,6 +18,7 @@ import { newSrs, reviewSrs } from '@shared/srs'
 import { normalizeTerm } from '@shared/text'
 import { addDays, bestStreak, computeStreak, dayKey, startOfDay, DAY } from '@shared/schedule'
 import { levelFromXp, newlyEarned, xpForRating, XP, type BadgeContext } from '@shared/gamification'
+import type { GrammarProgress, GrammarTopic } from '@shared/grammar/types'
 
 export const HARD_LIST = 'Zor kelimeler'
 
@@ -86,6 +87,14 @@ CREATE TABLE IF NOT EXISTS badges (
   id TEXT PRIMARY KEY,
   earned_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS grammar_progress (
+  topic_id TEXT NOT NULL,
+  activity TEXT NOT NULL,
+  best INTEGER NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (topic_id, activity)
+);
 CREATE TABLE IF NOT EXISTS kv (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -149,6 +158,8 @@ export class Repo {
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')
     db.exec(SCHEMA)
+    const cols = (db.prepare('PRAGMA table_info(activity)').all() as { name: string }[]).map((c) => c.name)
+    if (!cols.includes('grammar')) db.exec('ALTER TABLE activity ADD COLUMN grammar INTEGER NOT NULL DEFAULT 0')
     this.ensureHardList()
   }
 
@@ -379,6 +390,27 @@ export class Repo {
     return this.getItem(id)!
   }
 
+  /** Yapay zekâ sonucunu SADECE boş alanlara yazar; kullanıcının girdiği hiçbir alanı değiştirmez */
+  fillMissing(id: number, r: Partial<ItemFields>, now = Date.now()): Item | null {
+    const cur = this.getItem(id)
+    if (!cur) return null
+    const patch: Partial<ItemFields> = {}
+    const empty = (v: unknown) => (Array.isArray(v) ? v.length === 0 : !String(v ?? '').trim())
+    for (const k of ['ipa', 'pos', 'cefr', 'examples', 'synonyms', 'antonyms', 'collocations', 'meanings'] as const) {
+      if (empty(cur[k]) && r[k] !== undefined && !empty(r[k])) (patch as Record<string, unknown>)[k] = r[k]
+    }
+    if (cur.kind === 'pattern') {
+      for (const k of ['register', 'template', 'usage'] as const) if (empty(cur[k]) && r[k]) (patch as Record<string, unknown>)[k] = r[k]
+    }
+    if (!Object.keys(patch).length) return cur
+    return this.updateItem(id, patch, now)
+  }
+
+  /** Telaffuz, tür, seviye veya örnek cümlesi eksik kartlar */
+  needsDetails(i: Item): boolean {
+    return !i.ipa || !i.pos || !i.cefr || i.examples.length === 0
+  }
+
   deleteItems(ids: number[]): void {
     const st = this.db.prepare('DELETE FROM items WHERE id = ?')
     this.db.transaction(() => ids.forEach((id) => st.run(id)))()
@@ -576,19 +608,22 @@ export class Repo {
     )
   }
 
-  private bumpActivity(now: number, d: Partial<{ reviews: number; correct: number; xp: number; added: number; learned: number }>): void {
+  private bumpActivity(
+    now: number,
+    d: Partial<{ reviews: number; correct: number; xp: number; added: number; learned: number; grammar: number }>
+  ): void {
     this.db
       .prepare(
-        `INSERT INTO activity (day, reviews, correct, xp, added, learned) VALUES (@day, @reviews, @correct, @xp, @added, @learned)
+        `INSERT INTO activity (day, reviews, correct, xp, added, learned, grammar) VALUES (@day, @reviews, @correct, @xp, @added, @learned, @grammar)
          ON CONFLICT(day) DO UPDATE SET reviews = reviews + @reviews, correct = correct + @correct, xp = xp + @xp,
-           added = added + @added, learned = learned + @learned`
+           added = added + @added, learned = learned + @learned, grammar = grammar + @grammar`
       )
-      .run({ day: dayKey(now), reviews: 0, correct: 0, xp: 0, added: 0, learned: 0, ...d })
+      .run({ day: dayKey(now), reviews: 0, correct: 0, xp: 0, added: 0, learned: 0, grammar: 0, ...d })
     if (d.xp) this.kvSet('xp', this.kvGet('xp', 0) + d.xp)
   }
 
   studiedDays(): Set<string> {
-    return new Set((this.db.prepare('SELECT day FROM activity WHERE reviews > 0').all() as { day: string }[]).map((r) => r.day))
+    return new Set((this.db.prepare('SELECT day FROM activity WHERE reviews > 0 OR grammar > 0').all() as { day: string }[]).map((r) => r.day))
   }
 
   streak(now = Date.now()): number {
@@ -596,7 +631,54 @@ export class Repo {
   }
 
   studiedToday(now = Date.now()): boolean {
-    return this.activityFor(dayKey(now)).reviews > 0
+    return this.studiedDays().has(dayKey(now))
+  }
+
+  // ---------- konu tekrarı ----------
+  grammarProgress(): GrammarProgress[] {
+    return this.db
+      .prepare('SELECT topic_id AS topicId, activity, best, attempts, last_at AS lastAt FROM grammar_progress')
+      .all() as GrammarProgress[]
+  }
+
+  /** Bir alıştırma turunun sonucunu kaydeder; doğru cevap başına XP verir */
+  recordGrammar(topicId: string, activity: string, correct: number, total: number, now = Date.now()) {
+    const pct = total ? Math.round((correct / total) * 100) : 0
+    const prev = this.db.prepare('SELECT best FROM grammar_progress WHERE topic_id = ? AND activity = ?').get(topicId, activity) as
+      | { best: number }
+      | undefined
+    this.db
+      .prepare(
+        `INSERT INTO grammar_progress (topic_id, activity, best, attempts, last_at) VALUES (?, ?, ?, 1, ?)
+         ON CONFLICT(topic_id, activity) DO UPDATE SET best = MAX(best, excluded.best), attempts = attempts + 1, last_at = excluded.last_at`
+      )
+      .run(topicId, activity, pct, now)
+    const xpBefore = this.kvGet('xp', 0)
+    const firstToday = !this.studiedToday(now)
+    const xp = correct * 3 + (pct === 100 && total >= 5 ? 10 : 0)
+    this.bumpActivity(now, { xp, grammar: Math.max(1, total) })
+    return {
+      pct,
+      xp,
+      newBest: pct > (prev?.best ?? -1),
+      levelUp: levelFromXp(this.kvGet('xp', 0)).level > levelFromXp(xpBefore).level,
+      streak: this.streak(now),
+      streakExtended: firstToday,
+      newBadges: this.checkBadges(now)
+    }
+  }
+
+  customTopics(): GrammarTopic[] {
+    return this.kvGet<GrammarTopic[]>('customTopics', [])
+  }
+
+  saveCustomTopic(t: GrammarTopic): void {
+    this.kvSet('customTopics', [...this.customTopics().filter((x) => x.id !== t.id), { ...t, custom: true }])
+  }
+
+  deleteCustomTopic(id: string): void {
+    this.kvSet('customTopics', this.customTopics().filter((x) => x.id !== id))
+    this.db.prepare('DELETE FROM grammar_progress WHERE topic_id = ?').run(id)
   }
 
   recordEvent(kind: 'conversation' | 'focus' | 'perfect', now = Date.now()): string[] {
@@ -616,7 +698,8 @@ export class Repo {
       totalReviews: (this.db.prepare('SELECT COUNT(*) AS c FROM reviews').get() as { c: number }).c,
       conversations: this.kvGet('conversations', 0),
       focusSessions: this.kvGet('focusSessions', 0),
-      perfectSession: this.kvGet('perfectSessions', 0) > 0
+      perfectSession: this.kvGet('perfectSessions', 0) > 0,
+      grammarTopics: (this.db.prepare('SELECT COUNT(DISTINCT topic_id) AS c FROM grammar_progress').get() as { c: number }).c
     }
   }
 
@@ -731,7 +814,7 @@ export class Repo {
 
   // ---------- yedekleme ----------
   exportJson(): string {
-    const tables = ['items', 'lists', 'item_lists', 'item_tags', 'reviews', 'activity', 'badges', 'kv']
+    const tables = ['items', 'lists', 'item_lists', 'item_tags', 'reviews', 'activity', 'badges', 'grammar_progress', 'kv']
     const data: Record<string, unknown[]> = {}
     for (const t of tables) data[t] = this.db.prepare(`SELECT * FROM ${t}`).all()
     // Şifreli API anahtarı yedeğe girmez
@@ -743,7 +826,7 @@ export class Repo {
   importJson(json: string): { items: number } {
     const parsed = JSON.parse(json) as { app?: string; data?: Record<string, Record<string, unknown>[]> }
     if (parsed.app !== 'kelime-defterim' || !parsed.data) throw new Error('Bu dosya bir Kelime Defterim yedeği değil.')
-    const order = ['items', 'lists', 'item_lists', 'item_tags', 'reviews', 'activity', 'badges', 'kv']
+    const order = ['items', 'lists', 'item_lists', 'item_tags', 'reviews', 'activity', 'badges', 'grammar_progress', 'kv']
     const keepKey = this.kvGet<string>('apiKeyEnc', '')
     this.db.transaction(() => {
       for (const t of [...order].reverse()) this.db.prepare(`DELETE FROM ${t}`).run()

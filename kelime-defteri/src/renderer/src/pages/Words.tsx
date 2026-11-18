@@ -197,7 +197,7 @@ function ListsPanel({ active, onPick }: { active?: number; onPick: (id?: number)
 }
 
 export function WordsPage({ kind, openId }: { kind: ItemKind; openId?: number }) {
-  const { toast } = useApp()
+  const { toast, info } = useApp()
   const isPatterns = kind === 'pattern'
   const [f, setF] = useState<ItemFilter>({ sort: 'added', kind: isPatterns ? 'pattern' : undefined })
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -297,6 +297,17 @@ export function WordsPage({ kind, openId }: { kind: ItemKind; openId?: number })
             <button className="btn py-1.5" onClick={() => bulk(() => api.setPaused(ids, false), 'Devam ettiriliyor')}>
               Devam
             </button>
+            {info?.hasApiKey && (
+              <button
+                className="btn py-1.5"
+                onClick={async () => {
+                  const n = await api.enrichMissing(ids)
+                  toast(n ? `${n} kartın eksikleri arka planda dolduruluyor…` : 'Seçili kartlarda eksik alan yok')
+                }}
+              >
+                <Icon name="sparkles" size={13} /> Eksikleri doldur
+              </button>
+            )}
             <button className="btn py-1.5" onClick={() => confirm('Seçili kartların ilerlemesi sıfırlansın mı?') && bulk(() => api.resetProgress(ids), 'Sıfırlandı')}>
               Sıfırla
             </button>

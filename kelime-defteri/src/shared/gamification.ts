@@ -36,6 +36,7 @@ export interface BadgeContext {
   conversations: number
   focusSessions: number
   perfectSession: boolean
+  grammarTopics: number
 }
 
 export interface BadgeDef {
@@ -60,6 +61,9 @@ export const BADGES: BadgeDef[] = [
   { id: 'reviews-1000', name: '1000 tekrar', desc: '1000 tekrar yaptın', icon: '🚀', test: (c) => c.totalReviews >= 1000 },
   { id: 'talker', name: 'Sohbet başladı', desc: 'İlk konuşma pratiğini tamamladın', icon: '💬', test: (c) => c.conversations >= 1 },
   { id: 'focus', name: 'Odaklan', desc: 'Bir odak oturumunu bitirdin', icon: '🎯', test: (c) => c.focusSessions >= 1 },
+  { id: 'grammar-1', name: 'Konuya giriş', desc: 'İlk konu tekrarını yaptın', icon: '📘', test: (c) => c.grammarTopics >= 1 },
+  { id: 'grammar-5', name: 'Dilbilgisi meraklısı', desc: '5 farklı konu çalıştın', icon: '📗', test: (c) => c.grammarTopics >= 5 },
+  { id: 'grammar-13', name: 'Konuların hepsi', desc: '13 konunun hepsini çalıştın', icon: '🏅', test: (c) => c.grammarTopics >= 13 },
   { id: 'perfect', name: 'Kusursuz', desc: 'En az 10 kartlık oturumu hatasız bitirdin', icon: '✨', test: (c) => c.perfectSession }
 ]
 

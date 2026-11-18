@@ -16,6 +16,7 @@ import type {
 import { parseCsv, rowsToImport, splitMeanings, normalizeTerm } from '@shared/text'
 import { dayKey } from '@shared/schedule'
 import { nativeTts } from './nativeTts'
+import { BUILTIN_TOPICS, type GrammarTopic } from '@shared/grammar'
 
 export interface ApiDeps {
   repo: Repo
@@ -37,6 +38,38 @@ export function createApi(d: ApiDeps) {
   const changed = <T>(v: T): T => {
     d.dataChanged()
     return v
+  }
+
+  // ---- arka planda eksik alanları yapay zekâ ile doldurma ----
+  const queue: number[] = []
+  let running = false
+  const runQueue = async () => {
+    if (running) return
+    running = true
+    try {
+      while (queue.length && ai.available()) {
+        const id = queue.shift()!
+        const it = repo.getItem(id)
+        if (!it || !repo.needsDetails(it)) continue
+        try {
+          const r = await ai.enrich(it.term, it.meanings[0])
+          repo.fillMissing(id, r)
+          d.dataChanged()
+        } catch (e) {
+          console.warn('[otomatik doldurma]', (e as Error).message)
+          if (/anahtar|erişim|bağlantı/i.test((e as Error).message)) break // anahtar/bağlantı sorunu: kuyruğu durdur
+        }
+      }
+    } finally {
+      running = false
+    }
+  }
+  const enrichLater = (ids: number[]) => {
+    if (!ai.available()) return 0
+    const items = repo.getItems(ids).filter((i) => repo.needsDetails(i))
+    for (const i of items) if (!queue.includes(i.id)) queue.push(i.id)
+    void runQueue()
+    return items.length
   }
 
   return {
@@ -74,8 +107,18 @@ export function createApi(d: ApiDeps) {
       const all = repo.allTerms()
       return terms.map((t) => all.has(normalizeTerm(t)))
     },
-    addItem: (draft: ItemDraft) => changed(repo.addItem(draft)),
-    addMany: (drafts: ItemDraft[]) => changed(repo.addMany(drafts)),
+    addItem(draft: ItemDraft) {
+      const it = changed(repo.addItem(draft))
+      enrichLater([it.id])
+      return it
+    },
+    addMany(drafts: ItemDraft[]) {
+      const items = changed(repo.addMany(drafts))
+      enrichLater(items.map((i) => i.id))
+      return items
+    },
+    /** Seçili kartların (boşsa tüm defterin) eksik alanlarını arka planda doldur */
+    enrichMissing: (ids: number[]) => enrichLater(ids.length ? ids : repo.listItems({}).map((i) => i.id)),
     updateItem: (id: number, patch: Partial<ItemDraft>) => changed(repo.updateItem(id, patch)),
     deleteItems: (ids: number[]) => changed(repo.deleteItems(ids)),
     setStatus: (ids: number[], status: ItemStatus) => changed(repo.setStatus(ids, status)),
@@ -166,6 +209,29 @@ export function createApi(d: ApiDeps) {
       return r.filePath
     },
     splitMeanings: (s: string) => splitMeanings(s),
+
+    // ---- konu tekrarı ----
+    grammarTopics: (): GrammarTopic[] => [...BUILTIN_TOPICS, ...repo.customTopics()],
+    grammarProgress: () => repo.grammarProgress(),
+    grammarRecord: (topicId: string, activity: string, correct: number, total: number) => changed(repo.recordGrammar(topicId, activity, correct, total)),
+    async aiGrammarExercises(topicId: string, kind: 'test' | 'gap' | 'order') {
+      const topic = [...BUILTIN_TOPICS, ...repo.customTopics()].find((t) => t.id === topicId)
+      if (!topic) throw new Error('Konu bulunamadı.')
+      // Cümlelerde sadece kullanıcının kendi kelimeleri (öğreniyor/öğrendi) kullanılabilir
+      const words = [...repo.listItems({ status: 'learning' }), ...repo.listItems({ status: 'learned' })].slice(0, 25)
+      return ai.grammarExercises(topic, kind, words)
+    },
+    aiGrammarCheck(topicId: string, task: string, answer: string) {
+      const topic = [...BUILTIN_TOPICS, ...repo.customTopics()].find((t) => t.id === topicId)
+      if (!topic) throw new Error('Konu bulunamadı.')
+      return ai.grammarCheck(topic, task, answer)
+    },
+    async aiCreateTopic(title: string) {
+      const t = await ai.grammarTopic(title)
+      repo.saveCustomTopic(t)
+      return changed(t)
+    },
+    deleteCustomTopic: (id: string) => changed(repo.deleteCustomTopic(id)),
 
     // ---- yerel İngilizce telaffuz (Web Speech'te İngilizce ses yoksa) ----
     nativeVoices: () => nativeTts.voices(),
