@@ -25,7 +25,10 @@ import type { Settings } from '@shared/types'
 // Alarm sesleri kullanıcı etkileşimi olmadan da çalabilsin
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 // İsteğe bağlı: veri klasörünü başka bir yere taşı (ör. disk doluysa)
-if (process.env.KELIME_DATA_DIR) app.setPath('userData', process.env.KELIME_DATA_DIR)
+// (ortam değişkeni KELIME_DATA_DIR veya kısayol argümanı --data-dir="D:\...")
+const dataDirArg = process.argv.find((a) => a.startsWith('--data-dir='))?.slice('--data-dir='.length).replace(/^"|"$/g, '')
+const customDataDir = dataDirArg || process.env.KELIME_DATA_DIR
+if (customDataDir) app.setPath('userData', customDataDir)
 // Sadece geliştirme: otomatik arayüz testleri için DevTools portu
 if (!app.isPackaged && process.env.KELIME_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.KELIME_DEBUG_PORT)
 
@@ -342,12 +345,12 @@ function applyAutoStart(s: Settings): void {
       const exec = process.env.APPIMAGE ?? process.execPath
       writeFileSync(
         file,
-        `[Desktop Entry]\nType=Application\nName=Kelime Defterim\nExec="${exec}" --hidden\nX-GNOME-Autostart-enabled=true\n`
+        `[Desktop Entry]\nType=Application\nName=Kelime Defterim\nExec="${exec}" --hidden${dataDirArg ? ` "--data-dir=${dataDirArg}"` : ''}\nX-GNOME-Autostart-enabled=true\n`
       )
     } else if (existsSync(file)) rmSync(file)
     return
   }
-  app.setLoginItemSettings({ openAtLogin: s.autoStart, args: ['--hidden'] })
+  app.setLoginItemSettings({ openAtLogin: s.autoStart, args: ['--hidden', ...(dataDirArg ? [`--data-dir=${dataDirArg}`] : [])] })
 }
 
 // ---------- tepsi ----------
