@@ -1,0 +1,43 @@
+appId: com.kelimedefterim.app
+productName: Kelime Defterim
+# better-sqlite3 N-API hazır ikili dosyalarla gelir; derleme araçları gerekmez
+npmRebuild: false
+# Yerelde indirilmiş Electron kullanılır (tekrar indirme yok)
+electronDist: node_modules/electron/dist
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+win:
+  target: nsis
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  shortcutName: Kelime Defterim
+  createDesktopShortcut: true
+mac:
+  target: dmg
+  icon: build/icon.png
+  category: public.app-category.education
+linux:
+  target: AppImage
+  icon: build/icon.png
+  category: Education
+protocols:
+  - name: Kelime Defterim
+    schemes: [kelimedefterim]
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+  - from: build/tray.png
+    to: tray.png
+  - from: build/trayTemplate.png
+    to: trayTemplate.png
+  - from: build/trayTemplate@2x.png
+    to: trayTemplate@2x.png
