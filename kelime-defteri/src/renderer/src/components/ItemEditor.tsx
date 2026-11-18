@@ -281,7 +281,25 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
         </div>
       )}
       {!hasAi && !item && (
-        <p className="text-xs text-muted">Yapay zekâ kapalı: anlam ve örnekleri kendin yazabilirsin. (Ayarlar → API anahtarı)</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm">
+          <div>
+            <div className="font-bold">Otomatik doldurma kapalı — API anahtarı eklenmemiş</div>
+            <div className="text-xs text-muted">
+              Telaffuz, tür, seviye ve örnek cümlelerin kendiliğinden gelmesi için Ayarlar'dan Anthropic API anahtarını ekle. Şimdilik
+              sadece kelime + anlam yazıp kaydedebilirsin; anahtarı ekledikten sonra Kelimelerim → "Eksikleri doldur" ile tamamlanır.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary shrink-0 py-1.5"
+            onClick={() => {
+              onCancel?.()
+              navigate('/settings')
+            }}
+          >
+            API anahtarı ekle
+          </button>
+        </div>
       )}
 
       {showDetails && (
@@ -289,11 +307,11 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className="label">Telaffuz (IPA)</label>
-              <input className="input" value={d.ipa} placeholder="/rɪˈzɪliənt/" onChange={(e) => set({ ipa: e.target.value })} />
+              <input className="input" value={d.ipa} placeholder={hasAi ? "otomatik dolacak" : "ör. /tent/"} onChange={(e) => set({ ipa: e.target.value })} />
             </div>
             <div>
               <label className="label">Tür</label>
-              <input className="input" value={d.pos} placeholder="sıfat" onChange={(e) => set({ pos: e.target.value })} />
+              <input className="input" value={d.pos} placeholder={hasAi ? "otomatik dolacak" : "ör. isim"} onChange={(e) => set({ pos: e.target.value })} />
             </div>
             <div>
               <label className="label">Seviye</label>
