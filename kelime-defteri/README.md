@@ -147,7 +147,13 @@ Ayarlar → Yedekleme:
 
 Veritabanı (`kelime-defterim.db`) uygulamanın kullanıcı veri klasöründedir:
 Windows `%APPDATA%\Kelime Defterim`, macOS `~/Library/Application Support/Kelime Defterim`,
-Linux `~/.config/Kelime Defterim`. İstersen `KELIME_DATA_DIR` ortam değişkeniyle başka bir klasör seçebilirsin.
+Linux `~/.config/Kelime Defterim`. Başka bir klasör kullanmak için (ör. C: diski doluysa) kısayolun hedefine `--data-dir` ekle:
+
+```
+"D:\Kelime Defterim\uygulama\Kelime Defterim.exe" "--data-dir=D:\Kelime Defterim\veri"
+```
+
+`KELIME_DATA_DIR` ortam değişkeni de aynı işi görür. Otomatik başlatma bu klasörü korur.
 
 ---
 
