@@ -407,7 +407,9 @@ app.whenReady().then(() => {
   const secrets = new Secrets(repo)
   const ai = new Ai(
     () => secrets.getKey(),
-    () => repo.getSettings().ai.model
+    () => repo.getSettings().ai.model,
+    () => repo.getSettings().ai.provider,
+    join(dataDir, 'claude-calls')
   )
 
   api = createApi({

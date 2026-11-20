@@ -16,12 +16,16 @@ import {
   grammarTopicPrompt
 } from '@shared/prompts'
 import type { GQuestion, GrammarTopic } from '@shared/grammar/types'
+import { ClaudeCliError, findClaude, runClaude } from './claudeCli'
 
 export class AiUnavailableError extends Error {
   constructor() {
-    super('Yapay zekâ özellikleri için Ayarlar ekranından Anthropic API anahtarı ekleyin.')
+    super('Yapay zekâ kapalı: Ayarlar → Yapay zekâ bölümünden "Claude hesabım" veya API anahtarı seçin.')
   }
 }
+
+export type AiProvider = 'auto' | 'api' | 'claude'
+export type AiMode = 'api' | 'claude' | 'none'
 
 const EnrichSchema = z.object({
   kind: z.enum(['word', 'pattern']),
@@ -90,7 +94,7 @@ const validChoice = (q: z.infer<typeof ChoiceSchema>) => q.options.length >= 2 &
 const validGap = (q: z.infer<typeof GapSchema>) => q.sentence.split('___').length === 2 && q.answers.some((a) => a.trim())
 
 function friendlyError(e: unknown): Error {
-  if (e instanceof AiUnavailableError) return e
+  if (e instanceof AiUnavailableError || e instanceof ClaudeCliError) return e
   if (e instanceof Anthropic.AuthenticationError) return new Error('API anahtarı geçersiz görünüyor. Ayarlar ekranından kontrol edin.')
   if (e instanceof Anthropic.PermissionDeniedError) return new Error('Bu API anahtarının seçili modele erişimi yok.')
   if (e instanceof Anthropic.NotFoundError) return new Error('Seçili model bulunamadı. Ayarlardan başka bir model deneyin.')
@@ -106,11 +110,33 @@ export class Ai {
 
   constructor(
     private getKey: () => string,
-    private getModel: () => ModelId
+    private getModel: () => ModelId,
+    private getProvider: () => AiProvider = () => 'auto',
+    private workDir = ''
   ) {}
 
+  /** Hangi yol kullanılacak: API anahtarı mı, bilgisayardaki Claude hesabı mı? */
+  mode(): AiMode {
+    const pref = this.getProvider()
+    const hasKey = !!this.getKey()
+    const hasCli = !!findClaude()
+    if (pref === 'api') return hasKey ? 'api' : 'none'
+    if (pref === 'claude') return hasCli ? 'claude' : 'none'
+    // otomatik: Claude hesabı varsa onu (abonelik limitinden), yoksa API anahtarı
+    return hasCli ? 'claude' : hasKey ? 'api' : 'none'
+  }
+
   available(): boolean {
-    return !!this.getKey()
+    return this.mode() !== 'none'
+  }
+
+  private cliModel(): 'haiku' | 'sonnet' {
+    return this.getModel().includes('sonnet') ? 'sonnet' : 'haiku'
+  }
+
+  private async cliText(system: string, prompt: string): Promise<string> {
+    const r = await runClaude({ model: this.cliModel(), system, prompt, workDir: this.workDir })
+    return r.text
   }
 
   private c(): Anthropic {
@@ -124,6 +150,27 @@ export class Ai {
   }
 
   private async parse<T extends z.ZodType>(schema: T, system: string, user: string, maxTokens = 2000): Promise<z.infer<T>> {
+    const mode = this.mode()
+    if (mode === 'none') throw new AiUnavailableError()
+    if (mode === 'claude') {
+      const jsonSchema = z.toJSONSchema(schema) as Record<string, unknown>
+      delete jsonSchema.$schema
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const r = await runClaude({ model: this.cliModel(), system, prompt: user, jsonSchema, workDir: this.workDir, timeoutMs: 180_000 })
+        let data: unknown = r.structured
+        if (data === undefined) {
+          try {
+            data = JSON.parse(r.text.replace(/^```(?:json)?|```$/g, '').trim())
+          } catch {
+            data = undefined
+          }
+        }
+        const ok = schema.safeParse(data)
+        if (ok.success) return ok.data as z.infer<T>
+        console.warn('[claude] doğrulama hatası:', ok.error.issues.slice(0, 3))
+      }
+      throw new Error('Claude yanıtı okunamadı; tekrar deneyin.')
+    }
     try {
       const res = await this.c().messages.parse({
         model: this.getModel(),
@@ -141,6 +188,8 @@ export class Ai {
   }
 
   async testKey(): Promise<string> {
+    if (this.mode() === 'claude') return this.cliText('Be terse.', 'Reply with the single word: OK')
+    if (this.mode() === 'none') throw new AiUnavailableError()
     try {
       const res = await this.c().messages.create({
         model: this.getModel(),
@@ -178,6 +227,16 @@ export class Ai {
       ? history.map((m) => ({ role: m.role, content: m.content }))
       : [{ role: 'user', content: '(The learner is ready. Start the role-play with a short greeting and a question.)' }]
     if (messages[0].role === 'assistant') messages.unshift({ role: 'user', content: '(Start the role-play.)' })
+    if (this.mode() === 'claude') {
+      const transcript = history.length
+        ? history.map((m) => `${m.role === 'user' ? 'LEARNER' : 'PARTNER'}: ${m.content}`).join('\n')
+        : '(The conversation has not started yet.)'
+      return this.cliText(
+        conversationSystem(scenario, targets),
+        `Conversation so far:\n${transcript}\n\nWrite ONLY the PARTNER's next message (${history.length ? 'reply to the learner' : 'start with a short greeting and a question'}). No labels, no quotes.`
+      )
+    }
+    if (this.mode() === 'none') throw new AiUnavailableError()
     try {
       const res = await this.c().messages.create({
         model: this.getModel(),

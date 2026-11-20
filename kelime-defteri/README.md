@@ -52,10 +52,22 @@ npm run typecheck
 
 ---
 
-## API anahtarını ekleme (isteğe bağlı)
+## Yapay zekâyı bağlama (isteğe bağlı)
 
-Anahtar olmadan da uygulamanın tamamı çalışır; sadece yapay zekâ özellikleri (otomatik doldurma, kalıp kontrolü,
-konuşma pratiği) kapalı kalır.
+Bağlamadan da uygulamanın tamamı çalışır; sadece yapay zekâ özellikleri (otomatik doldurma, kalıp kontrolü,
+konuşma pratiği, yeni konu soruları, ödev kontrolü) kapalı kalır. İki yol var (Ayarlar → Yapay zekâ):
+
+### 1) Claude hesabım (önerilen — API anahtarı gerekmez)
+
+Bilgisayarında [Claude Code](https://claude.com/claude-code) kurulu ve Claude hesabınla giriş yapılmışsa uygulama onu
+otomatik bulur ve kullanır. Kullanım **Claude aboneliğinin (Pro/Max) limitinden** düşer; ayrı ücret yoktur.
+
+- Kurulu değilse: Claude Code'u kur, bir terminalde bir kez `claude` yazıp hesabınla giriş yap, sonra Ayarlar'da "Yeniden ara".
+- Uygulama her istekte `claude -p` komutunu araçsız, kişisel ayarların yüklenmeden ve oturum kaydetmeden çalıştırır;
+  ortamdaki `ANTHROPIC_API_KEY` alt sürece verilmez, böylece istekler API faturasına değil aboneliğe gider.
+- Yanıt süreleri: kelime doldurma ~5–7 sn, konuşma yanıtı ~4 sn, 6 soruluk yeni test ~10 sn.
+
+### 2) API anahtarı
 
 **Yol 1 — Ayarlar ekranı (önerilen):** Ayarlar → Yapay zekâ → anahtarı yapıştır → Kaydet. Anahtar işletim
 sisteminin güvenli deposuyla (Electron `safeStorage`: Windows DPAPI / macOS Anahtar Zinciri / Linux keyring)

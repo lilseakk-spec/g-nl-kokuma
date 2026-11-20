@@ -323,10 +323,10 @@ export function ConversationPage() {
       <PageHeader title="Konuşma pratiği" sub="Seçtiğin senaryoda, sadece kendi kelime ve kalıplarınla sohbet." />
       {!info?.hasApiKey ? (
         <div className="card p-10 text-center">
-          <div className="text-xl font-extrabold">Bu özellik için API anahtarı gerekiyor</div>
+          <div className="text-xl font-extrabold">Bu özellik için yapay zekâ bağlantısı gerekiyor</div>
           <p className="mt-2 text-muted">Konuşma pratiği yapay zekâ ile çalışır. Uygulamanın geri kalanı anahtarsız da tam çalışır.</p>
           <button className="btn btn-primary mt-5" onClick={() => navigate('/settings')}>
-            Ayarlar → API anahtarı
+            Ayarlar → Yapay zekâ (Claude hesabım)
           </button>
         </div>
       ) : session ? (

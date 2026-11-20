@@ -263,7 +263,7 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
         <div className="flex min-h-[28px] items-center gap-3 text-sm">
           {loading ? (
             <span className="flex items-center gap-2 font-semibold text-brand">
-              <Spinner /> Yapay zekâ telaffuz, tür, seviye ve örnek cümleleri dolduruyor…
+              <Spinner /> {info?.aiMode === 'claude' ? 'Claude' : 'Yapay zekâ'} telaffuz, tür, seviye ve örnek cümleleri dolduruyor… (birkaç saniye)
             </span>
           ) : filled && filledFor ? (
             <>
@@ -283,10 +283,10 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
       {!hasAi && !item && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm">
           <div>
-            <div className="font-bold">Otomatik doldurma kapalı — API anahtarı eklenmemiş</div>
+            <div className="font-bold">Otomatik doldurma kapalı — yapay zekâ bağlı değil</div>
             <div className="text-xs text-muted">
-              Telaffuz, tür, seviye ve örnek cümlelerin kendiliğinden gelmesi için Ayarlar'dan Anthropic API anahtarını ekle. Şimdilik
-              sadece kelime + anlam yazıp kaydedebilirsin; anahtarı ekledikten sonra Kelimelerim → "Eksikleri doldur" ile tamamlanır.
+              Telaffuz, tür, seviye ve örnek cümlelerin kendiliğinden gelmesi için Ayarlar → Yapay zekâ'dan "Claude hesabım"ı seç. Şimdilik
+              sadece kelime + anlam yazıp kaydedebilirsin; bağladıktan sonra Kelimelerim → "Eksikleri doldur" ile tamamlanır.
             </div>
           </div>
           <button
@@ -297,7 +297,7 @@ export function ItemEditor({ initial, item, autoFocus, onSaved, onCancel, compac
               navigate('/settings')
             }}
           >
-            API anahtarı ekle
+            Yapay zekâyı bağla
           </button>
         </div>
       )}

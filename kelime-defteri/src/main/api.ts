@@ -16,6 +16,7 @@ import type {
 import { parseCsv, rowsToImport, splitMeanings, normalizeTerm } from '@shared/text'
 import { dayKey } from '@shared/schedule'
 import { nativeTts } from './nativeTts'
+import { findClaude, resetClaudePath } from './claudeCli'
 import { BUILTIN_TOPICS, type GrammarTopic } from '@shared/grammar'
 
 export interface ApiDeps {
@@ -81,6 +82,8 @@ export function createApi(d: ApiDeps) {
         userData: app.getPath('userData'),
         hasApiKey: ai.available(),
         apiKeySource: secrets.source(),
+        aiMode: ai.mode(),
+        claudeFound: !!findClaude(),
         encryptionAvailable: secrets.encryptionAvailable()
       }
     },
@@ -95,6 +98,10 @@ export function createApi(d: ApiDeps) {
       return { hasApiKey: ai.available(), source: secrets.source() }
     },
     testApiKey: () => ai.testKey(),
+    rescanClaude() {
+      resetClaudePath()
+      return !!findClaude()
+    },
     openDataFolder: () => shell.openPath(app.getPath('userData')),
     showMain: (route?: string) => d.showMain(route),
     closeWindow: (win: BrowserWindow | null) => d.closeSender(win),
@@ -219,7 +226,8 @@ export function createApi(d: ApiDeps) {
       if (!topic) throw new Error('Konu bulunamadı.')
       // Cümlelerde sadece kullanıcının kendi kelimeleri (öğreniyor/öğrendi) kullanılabilir
       const words = [...repo.listItems({ status: 'learning' }), ...repo.listItems({ status: 'learned' })].slice(0, 25)
-      return ai.grammarExercises(topic, kind, words)
+      // Claude hesabı yolu daha yavaş: turu kısa tut
+      return ai.grammarExercises(topic, kind, words, ai.mode() === 'claude' ? 6 : 8)
     },
     aiGrammarCheck(topicId: string, task: string, answer: string) {
       const topic = [...BUILTIN_TOPICS, ...repo.customTopics()].find((t) => t.id === topicId)

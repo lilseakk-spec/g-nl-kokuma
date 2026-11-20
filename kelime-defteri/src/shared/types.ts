@@ -86,7 +86,8 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
   voice: { accent: 'en-US' | 'en-GB'; rate: number; voiceName: string }
   sound: { enabled: boolean; volume: number; alarmMelody: AlarmMelody }
-  ai: { model: ModelId }
+  /** provider: auto = Claude hesabı varsa onu, yoksa API anahtarını kullan */
+  ai: { model: ModelId; provider: 'auto' | 'api' | 'claude' }
   autoStart: boolean
   dailyGoal: number
   /** Havuzdan her gün sırayla X yeni kelime al (varsayılan kapalı) */
@@ -108,7 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   voice: { accent: 'en-US', rate: 0.95, voiceName: '' },
   sound: { enabled: true, volume: 0.6, alarmMelody: 'sunrise' },
-  ai: { model: 'claude-haiku-5-5' },
+  ai: { model: 'claude-haiku-5-5', provider: 'auto' },
   autoStart: true,
   dailyGoal: 20,
   dailyIntake: { enabled: false, count: 5, order: 'added' },
@@ -202,5 +203,7 @@ export interface AppInfo {
   userData: string
   hasApiKey: boolean
   apiKeySource: 'settings' | 'env' | 'none'
+  aiMode: 'api' | 'claude' | 'none'
+  claudeFound: boolean
   encryptionAvailable: boolean
 }

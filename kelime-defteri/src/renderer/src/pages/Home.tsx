@@ -76,7 +76,7 @@ export function HomePage() {
         </div>
         {!info?.hasApiKey && (
           <p className="mt-6 text-sm text-muted">
-            İpucu: Ayarlar'dan Anthropic API anahtarı eklersen anlam, telaffuz ve örnek cümleleri yapay zekâ doldurur. Anahtarsız da her şey çalışır.
+            İpucu: Ayarlar → Yapay zekâ'dan Claude hesabını bağlarsan anlam, telaffuz ve örnek cümleleri yapay zekâ doldurur. Bağlamadan da her şey çalışır.
           </p>
         )}
         {addModal}

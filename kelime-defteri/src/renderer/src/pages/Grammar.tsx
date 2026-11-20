@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   ACTIVITY_LABELS,
   ofType,
@@ -18,6 +18,26 @@ import { Icon, PageHeader, SpeakButton, Spinner, askText } from '../components/u
 import { MatchGame, RunGap, RunOrder, RunTest, SpeedRound, type Mistake } from '../components/GrammarActivities'
 
 const ACTIVITIES: GActivity[] = ['test', 'gap', 'order', 'match', 'speed', 'homework']
+
+// Yapay zekâ soruları arka planda önceden hazırlanır (sen anlatımı okurken)
+type AiKind = 'test' | 'gap' | 'order'
+const prefetch = new Map<string, Promise<GQuestion[]>>()
+function prefetchQuestions(topicId: string, kind: AiKind) {
+  const k = `${topicId}:${kind}`
+  if (!prefetch.has(k)) {
+    const p = api.aiGrammarExercises(topicId, kind)
+    p.catch(() => prefetch.delete(k))
+    prefetch.set(k, p)
+  }
+}
+function takePrefetched(topicId: string, kind: AiKind): Promise<GQuestion[]> {
+  const k = `${topicId}:${kind}`
+  const p = prefetch.get(k) ?? api.aiGrammarExercises(topicId, kind)
+  prefetch.delete(k)
+  // bir sonraki tur için hemen yenisini hazırlamaya başla
+  void p.then(() => prefetchQuestions(topicId, kind)).catch(() => undefined)
+  return p
+}
 const ICONS: Record<GActivity, string> = { test: '📝', gap: '✍️', order: '🧱', match: '🎴', speed: '⚡', homework: '📓' }
 
 function Rich({ text }: { text: string }) {
@@ -99,7 +119,7 @@ export function GrammarListPage() {
       </div>
       {!info?.hasApiKey && (
         <p className="mt-6 text-sm text-muted">
-          Tüm konular ve hazır alıştırmalar anahtarsız çalışır. API anahtarı eklersen her turda yeni sorular üretilir, ödevlerin kontrol edilir ve kendi konularını ekleyebilirsin.
+          Tüm konular ve hazır alıştırmalar anahtarsız çalışır. Ayarlar → Yapay zekâ bölümünden Claude hesabını bağlarsan her turda yeni sorular üretilir, ödevlerin kontrol edilir ve kendi konularını ekleyebilirsin.
         </p>
       )}
     </div>
@@ -207,7 +227,7 @@ function Homework({ topic, onDone }: { topic: GrammarTopic; onDone: (pct: number
             {busy ? <Spinner /> : <Icon name="sparkles" size={15} />} Yapay zekâ kontrol etsin
           </button>
         ) : (
-          <span className="self-center text-sm text-muted">API anahtarı ekleyince ödevin kontrol edilir; şimdilik örnek cevapla karşılaştırabilirsin.</span>
+          <span className="self-center text-sm text-muted">Yapay zekâ bağlanınca ödevin kontrol edilir; şimdilik örnek cevapla karşılaştırabilirsin.</span>
         )}
         <button className="btn" onClick={() => setShowSample((v) => !v)}>
           {showSample ? 'Örnek cevabı gizle' : 'Örnek cevabı göster'}
@@ -266,6 +286,13 @@ export function GrammarTopicPage({ id }: { id: string }) {
   const [result, setResult] = useState<Result | null>(null)
   const [loadingAi, setLoadingAi] = useState(false)
   const best = useMemo(() => bestFor(progress, id), [progress, id])
+  useEffect(() => {
+    if (!info?.hasApiKey) return
+    prefetchQuestions(id, 'test')
+  }, [id, info?.hasApiKey])
+  useEffect(() => {
+    if (info?.hasApiKey && (tab === 'gap' || tab === 'order')) prefetchQuestions(id, tab)
+  }, [id, tab, info?.hasApiKey])
 
   if (!topics) return null
   if (!topic)
@@ -298,7 +325,7 @@ export function GrammarTopicPage({ id }: { id: string }) {
     if (useAi && (tab === 'test' || tab === 'gap' || tab === 'order')) {
       setLoadingAi(true)
       try {
-        const qs = await api.aiGrammarExercises(topic.id, tab)
+        const qs = await takePrefetched(topic.id, tab)
         if (!qs.length) throw new Error('Yeni soru üretilemedi; hazır sorularla devam edebilirsin.')
         setRound({ key: Date.now(), questions: qs })
       } catch (e) {
@@ -490,7 +517,7 @@ export function GrammarTopicPage({ id }: { id: string }) {
             </button>
             {info?.hasApiKey && (tab === 'test' || tab === 'gap' || tab === 'order') && (
               <button className="btn btn-brand" disabled={loadingAi} onClick={() => void start(true)}>
-                {loadingAi ? <Spinner /> : <Icon name="sparkles" size={15} />} {loadingAi ? 'Yeni sorular hazırlanıyor…' : 'Yapay zekâ ile yeni sorular'}
+                {loadingAi ? <Spinner /> : <Icon name="sparkles" size={15} />} {loadingAi ? (info?.aiMode === 'claude' ? 'Claude soruları hazırlıyor (~10 sn)…' : 'Yeni sorular hazırlanıyor…') : 'Yapay zekâ ile yeni sorular'}
               </button>
             )}
             {info?.hasApiKey && (tab === 'test' || tab === 'gap' || tab === 'order') && (

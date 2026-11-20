@@ -52,59 +52,126 @@ export function SettingsPage() {
     <div className="space-y-5 pb-10">
       <PageHeader title="Ayarlar" />
 
-      <Section title="Yapay zekâ (isteğe bağlı)" icon="sparkles">
+      <Section title="Yapay zekâ" icon="sparkles">
         <p className="text-sm text-muted">
-          Anthropic API anahtarı eklersen anlam/örnek doldurma, kalıp kontrolü ve konuşma pratiği açılır. AI'a sadece senin kelime ve kalıpların gönderilir.
-          Anahtarsız da uygulamanın geri kalanı tam çalışır.
+          Otomatik doldurma (telaffuz, tür, seviye, örnek cümle), kalıp kontrolü, konuşma pratiği ve konu tekrarındaki yeni sorular yapay zekâ ile
+          çalışır. Yapay zekâya sadece senin kelime ve kalıpların gönderilir.
         </p>
         <Row
           label="Durum"
           hint={
-            info?.apiKeySource === 'settings'
-              ? 'Anahtar bu bilgisayarda şifreli olarak saklanıyor.'
-              : info?.apiKeySource === 'env'
-                ? '.env dosyasındaki ANTHROPIC_API_KEY kullanılıyor.'
-                : 'Anahtar yok — AI özellikleri kapalı.'
+            info?.aiMode === 'claude'
+              ? 'Bilgisayarındaki Claude hesabın kullanılıyor — kullanım Claude aboneliğinin limitinden düşer, API anahtarı gerekmez.'
+              : info?.aiMode === 'api'
+                ? info.apiKeySource === 'env'
+                  ? '.env dosyasındaki API anahtarı kullanılıyor (API faturasına yansır).'
+                  : 'API anahtarı kullanılıyor (API faturasına yansır).'
+                : 'Kapalı — aşağıdan bir bağlantı yolu seç.'
           }
         >
-          <span className={`chip ${info?.hasApiKey ? 'bg-good-soft text-good' : ''}`}>{info?.hasApiKey ? 'Açık' : 'Kapalı'}</span>
+          <span className={`chip ${info?.hasApiKey ? 'bg-good-soft text-good' : ''}`}>
+            {info?.aiMode === 'claude' ? 'Claude hesabı' : info?.aiMode === 'api' ? 'API anahtarı' : 'Kapalı'}
+          </span>
         </Row>
-        <div className="flex gap-2">
-          <input type="password" className="input" placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
-          <button
-            className="btn btn-primary"
-            disabled={!key.trim()}
-            onClick={async () => {
-              try {
-                await api.setApiKey(key)
-                setKey('')
-                await refreshInfo()
-                toast('API anahtarı güvenli şekilde kaydedildi')
-              } catch (e) {
-                toast((e as Error).message, 'err')
-              }
-            }}
-          >
-            Kaydet
-          </button>
-          {info?.apiKeySource === 'settings' && (
-            <button
-              className="btn btn-danger"
-              onClick={async () => {
-                await api.setApiKey('')
-                await refreshInfo()
-                toast('Anahtar silindi')
-              }}
-            >
-              Sil
-            </button>
-          )}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {(
+            [
+              ['claude', '🟠 Claude hesabım', 'Bilgisayarındaki Claude ile bağlanır; aboneliğinin (Pro/Max) limitinden yer. Anahtar gerekmez.'],
+              ['api', '🔑 API anahtarı', 'console.anthropic.com anahtarı ile; kullanım başına ücretlendirilir.']
+            ] as const
+          ).map(([v, title, desc]) => {
+            const active = s.ai.provider === v || (s.ai.provider === 'auto' && info?.aiMode === v)
+            return (
+              <button
+                key={v}
+                type="button"
+                className={`card border-2 p-4 text-left ${active ? 'border-brand' : 'hover:border-brand/50'}`}
+                onClick={async () => {
+                  await saveSettings({ ai: { ...s.ai, provider: v } })
+                  await refreshInfo()
+                }}
+              >
+                <div className="font-bold">
+                  {title} {active && <span className="chip ml-1 bg-brand text-white">seçili</span>}
+                </div>
+                <div className="mt-1 text-xs text-muted">{desc}</div>
+              </button>
+            )
+          })}
         </div>
-        {info && !info.encryptionAvailable && <p className="text-xs text-warn">Bu sistemde güvenli saklama yok; anahtarı .env dosyasına yazın.</p>}
-        <Row label="Model" hint="Haiku hızlı ve ekonomik; Sonnet daha ayrıntılı.">
-          <select className="input w-auto" value={s.ai.model} onChange={(e) => saveSettings({ ai: { model: e.target.value as Settings['ai']['model'] } })}>
-            <option value="claude-haiku-5-5">Claude Haiku 5.5 (varsayılan)</option>
-            <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+
+        {(s.ai.provider === 'claude' || (s.ai.provider === 'auto' && info?.aiMode !== 'api')) && (
+          <div className="rounded-xl bg-surface-2/60 p-4 text-sm">
+            {info?.claudeFound ? (
+              <span className="text-good">✓ Bilgisayarında Claude Code bulundu. "Test et" ile hesabının bağlı olduğunu doğrula.</span>
+            ) : (
+              <div className="space-y-2">
+                <div className="font-semibold text-warn">Bilgisayarında Claude Code bulunamadı.</div>
+                <div className="text-muted">
+                  Claude Code'u kur (claude.com/claude-code), bir kez terminalde <span className="kbd">claude</span> yazıp Claude hesabınla giriş yap, sonra
+                  "Yeniden ara"ya bas.
+                </div>
+                <button
+                  className="btn py-1.5"
+                  onClick={async () => {
+                    const ok = await api.rescanClaude()
+                    await refreshInfo()
+                    toast(ok ? 'Claude bulundu ✓' : 'Hâlâ bulunamadı', ok ? 'ok' : 'err')
+                  }}
+                >
+                  Yeniden ara
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(s.ai.provider === 'api' || (s.ai.provider === 'auto' && info?.aiMode === 'api')) && (
+          <>
+            <div className="flex gap-2">
+              <input type="password" className="input" placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
+              <button
+                className="btn btn-primary"
+                disabled={!key.trim()}
+                onClick={async () => {
+                  try {
+                    await api.setApiKey(key)
+                    setKey('')
+                    await refreshInfo()
+                    toast('API anahtarı güvenli şekilde kaydedildi')
+                  } catch (e) {
+                    toast((e as Error).message, 'err')
+                  }
+                }}
+              >
+                Kaydet
+              </button>
+              {info?.apiKeySource === 'settings' && (
+                <button
+                  className="btn btn-danger"
+                  onClick={async () => {
+                    await api.setApiKey('')
+                    await refreshInfo()
+                    toast('Anahtar silindi')
+                  }}
+                >
+                  Sil
+                </button>
+              )}
+            </div>
+            {info && !info.encryptionAvailable && <p className="text-xs text-warn">Bu sistemde güvenli saklama yok; anahtarı .env dosyasına yazın.</p>}
+          </>
+        )}
+
+        <Row label="Model" hint="Haiku hızlı ve limiti az harcar; Sonnet daha ayrıntılı ama limitten daha çok yer.">
+          <select
+            className="input w-auto"
+            value={s.ai.model}
+            onChange={(e) => saveSettings({ ai: { ...s.ai, model: e.target.value as Settings['ai']['model'] } })}
+          >
+            <option value="claude-haiku-5-5">Haiku (önerilen)</option>
+            <option value="claude-sonnet-5-5">Sonnet</option>
           </select>
           <button
             className="btn"
